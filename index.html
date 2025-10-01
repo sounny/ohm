@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Ohm's Law Calculator</title>
+    <style>
+        /* --- Basic Setup & Fonts --- */
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --background-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --calculated-bg: #e9ecef;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* --- Main Container --- */
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--surface-color);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: var(--box-shadow);
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-top: 30px;}
+
+        /* --- Main Content Layout (Calculator + Diagram) --- */
+        .main-content {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .calculator, .circuit-container {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        /* --- Calculator Inputs --- */
+        .input-group {
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: 120px 1fr 100px;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group label {
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .input-group input {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1.1em;
+            text-align: right;
+            transition: all 0.2s ease-in-out;
+            width: 100%;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+        }
+        
+        /* Style for calculated fields */
+        .input-group input.calculated {
+            background-color: var(--calculated-bg);
+            font-style: italic;
+            color: var(--secondary-color);
+        }
+        
+        .input-group .unit {
+            color: var(--secondary-color);
+        }
+
+        /* --- Dynamic Formula Display --- */
+        .formula-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #eef7ff;
+            border-left: 5px solid var(--primary-color);
+            border-radius: 4px;
+            text-align: center;
+            min-height: 50px;
+            transition: opacity 0.3s;
+        }
+        .formula-display p {
+            margin: 5px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .formula-display .placeholder {
+            color: var(--secondary-color);
+            font-style: italic;
+        }
+
+        /* --- Interactive Circuit Diagram --- */
+        .circuit-container {
+            text-align: center;
+        }
+
+        #circuit-diagram {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+        }
+
+        .circuit-wire {
+            fill: none;
+            stroke: var(--secondary-color);
+            stroke-width: 2;
+        }
+
+        .circuit-component {
+            fill: none;
+            stroke: var(--text-color);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .circuit-text {
+            font-size: 14px;
+            font-family: sans-serif;
+            fill: var(--text-color);
+        }
+
+        .circuit-value {
+            font-weight: bold;
+            fill: var(--primary-color);
+        }
+        
+        /* --- Explanations Section --- */
+        .explanation {
+            margin-top: 20px;
+        }
+        .explanation code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .input-group {
+                grid-template-columns: 100px 1fr 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Interactive Ohm's Law Calculator</h1>
+        <p style="text-align: center; margin-top: -15px; color: var(--secondary-color);">Enter any two values. The other two will be calculated in real-time.</p>
+        
+        <div class="main-content">
+            <div class="calculator">
+                <div class="input-group">
+                    <label for="voltage">Voltage (V):</label>
+                    <input type="number" id="voltage" placeholder="e.g., 12">
+                    <span class="unit">volts [V]</span>
+                </div>
+                <div class="input-group">
+                    <label for="current">Current (I):</label>
+                    <input type="number" id="current" placeholder="e.g., 0.5">
+                    <span class="unit">amperes [A]</span>
+                </div>
+                <div class="input-group">
+                    <label for="resistance">Resistance (R):</label>
+                    <input type="number" id="resistance" placeholder="e.g., 24">
+                    <span class="unit">ohms [Ω]</span>
+                </div>
+                <div class="input-group">
+                    <label for="power">Power (P):</label>
+                    <input type="number" id="power" placeholder="e.g., 6">
+                    <span class="unit">watts [W]</span>
+                </div>
+
+                <div class="formula-display" id="formula-display">
+                     <p class="placeholder">Formulas used will appear here...</p>
+                </div>
+            </div>
+
+            <div class="circuit-container">
+                <svg id="circuit-diagram" viewBox="0 0 250 180">
+                    <!-- Wires -->
+                    <path class="circuit-wire" d="M 50 150 L 200 150 L 200 50 L 150 50" />
+                    <path class="circuit-wire" d="M 100 50 L 50 50 L 50 90" />
+                    <path class="circuit-wire" d="M 50 110 L 50 150" />
+
+                    <!-- Resistor -->
+                    <path class="circuit-component" d="M 100 50 l 8.33 -15 l 16.67 30 l 16.67 -30 l 8.33 15" />
+                    <text x="125" y="25" text-anchor="middle" class="circuit-text">
+                        R = <tspan class="circuit-value" id="svg-resistance">? Ω</tspan>
+                    </text>
+                    
+                    <!-- Voltage Source -->
+                    <g class="circuit-component">
+                        <line x1="50" y1="90" x2="50" y2="98" />
+                        <line x1="35" y1="98" x2="65" y2="98" />
+                        <line x1="42" y1="102" x2="58" y2="102" />
+                        <line x1="50" y1="102" x2="50" y2="110" />
+                        <text x="40" y="95" text-anchor="end" class="circuit-text">+</text>
+                        <text x="40" y="112" text-anchor="end" class="circuit-text">-</text>
+                    </g>
+                    <text x="70" y="105" class="circuit-text">
+                        V = <tspan class="circuit-value" id="svg-voltage">? V</tspan>
+                    </text>
+                    
+                    <!-- Current Arrow and Text -->
+                    <g>
+                        <path class="circuit-wire" fill="var(--primary-color)" d="M 195 140 L 205 145 L 195 150 Z" />
+                         <text x="185" y="140" text-anchor="end" class="circuit-text">
+                            I = <tspan class="circuit-value" id="svg-current">? A</tspan>
+                        </text>
+                    </g>
+
+                     <!-- Power Text -->
+                     <text x="125" y="175" text-anchor="middle" class="circuit-text">
+                        P = <tspan class="circuit-value" id="svg-power">? W</tspan>
+                    </text>
+                </svg>
+            </div>
+        </div>
+
+        <div class="explanation">
+            <h2>Ohm's Law & Power Formulas</h2>
+            <p>Ohm's Law states that the current through a conductor between two points is directly proportional to the voltage across the two points. It is expressed as <code>V = I × R</code>.</p>
+            <p>Electrical power (P) is the rate at which electrical energy is transferred. In resistive circuits, it can be calculated using Joule's Law combined with Ohm's Law, leading to formulas like <code>P = V × I</code>, <code>P = I² × R</code>, and <code>P = V² / R</code>.</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputs = {
+                V: document.getElementById('voltage'),
+                I: document.getElementById('current'),
+                R: document.getElementById('resistance'),
+                P: document.getElementById('power')
+            };
+
+            const svgElements = {
+                V: document.getElementById('svg-voltage'),
+                I: document.getElementById('svg-current'),
+                R: document.getElementById('svg-resistance'),
+                P: document.getElementById('svg-power')
+            };
+            
+            const formulaDisplay = document.getElementById('formula-display');
+            
+            let lastEdited = [];
+
+            // Add event listeners to all inputs
+            Object.values(inputs).forEach(input => {
+                input.addEventListener('input', handleInput);
+            });
+
+            function handleInput(e) {
+                const editedId = e.target.id;
+                const editedKey = editedId.charAt(0).toUpperCase();
+
+                // Update the list of recently edited fields
+                lastEdited = [editedKey, ...lastEdited.filter(k => k !== editedKey)].slice(0, 2);
+                
+                calculateAndDisplay();
+            }
+
+            function calculateAndDisplay() {
+                // Get current values from inputs
+                const values = {
+                    V: parseFloat(inputs.V.value),
+                    I: parseFloat(inputs.I.value),
+                    R: parseFloat(inputs.R.value),
+                    P: parseFloat(inputs.P.value)
+                };
+
+                const knowns = Object.keys(values).filter(k => !isNaN(values[k]));
+                
+                if (knowns.length < 2) {
+                    // Not enough info to calculate, just update styles
+                    updateStylesAndDiagram(values, [], []);
+                    return;
+                }
+
+                // Use the two most recently edited valid inputs as the basis for calculation
+                const basis = lastEdited.filter(k => !isNaN(values[k]));
+                if(basis.length < 2) {
+                    // If one of the last edited is now empty, find another valid known
+                    const otherKnown = knowns.find(k => !basis.includes(k));
+                    if(otherKnown) basis.push(otherKnown);
+                }
+
+                if (basis.length < 2) {
+                    updateStylesAndDiagram(values, [], []);
+                    return;
+                }
+                
+                const [k1, k2] = basis.sort(); // Sort to make combinations predictable (e.g., 'IV' becomes 'I', 'V')
+                let newValues = { ...values };
+                let formulasUsed = [];
+
+                // The Big Calculation Logic Tree
+                if (k1 === 'I' && k2 === 'R') {
+                    newValues.V = values.I * values.R;
+                    newValues.P = values.I * values.I * values.R;
+                    formulasUsed = ["V = I × R", "P = I² × R"];
+                } else if (k1 === 'I' && k2 === 'V') {
+                    newValues.R = values.V / values.I;
+                    newValues.P = values.V * values.I;
+                    formulasUsed = ["R = V / I", "P = V × I"];
+                } else if (k1 === 'I' && k2 === 'P') {
+                    newValues.V = values.P / values.I;
+                    newValues.R = values.P / (values.I * values.I);
+                    formulasUsed = ["V = P / I", "R = P / I²"];
+                } else if (k1 === 'R' && k2 === 'V') {
+                    newValues.I = values.V / values.R;
+                    newValues.P = (values.V * values.V) / values.R;
+                    formulasUsed = ["I = V / R", "P = V² / R"];
+                } else if (k1 === 'P' && k2 === 'R') {
+                    newValues.I = Math.sqrt(values.P / values.R);
+                    newValues.V = Math.sqrt(values.P * values.R);
+                    formulasUsed = ["I = √(P / R)", "V = √(P × R)"];
+                } else if (k1 === 'P' && k2 === 'V') {
+                    newValues.I = values.P / values.V;
+                    newValues.R = (values.V * values.V) / values.P;
+                    formulasUsed = ["I = P / V", "R = V² / P"];
+                }
+                
+                const calculatedKeys = Object.keys(newValues).filter(k => !basis.includes(k));
+                updateUI(newValues, basis, calculatedKeys, formulasUsed);
+            }
+
+            function updateUI(values, knownKeys, calculatedKeys, formulas) {
+                // Update input fields
+                for (const key in values) {
+                    const input = inputs[key];
+                    const value = values[key];
+                    
+                    if (!isNaN(value)) {
+                        // Format to a reasonable number of decimal places
+                        const formattedValue = isFinite(value) ? parseFloat(value.toPrecision(5)) : "∞";
+                        if (input.value !== formattedValue.toString()) {
+                             input.value = formattedValue;
+                        }
+                    } else if (!knownKeys.includes(key)) {
+                        input.value = ''; // Clear if it's not a known and not calculable
+                    }
+                }
+                
+                updateStylesAndDiagram(values, knownKeys, formulas);
+            }
+            
+            function updateStylesAndDiagram(values, knownKeys, formulas) {
+                 // Update styles
+                Object.keys(inputs).forEach(key => {
+                    if (knownKeys.includes(key) && !isNaN(values[key])) {
+                        inputs[key].classList.remove('calculated');
+                    } else {
+                        inputs[key].classList.add('calculated');
+                    }
+                });
+
+                // Update SVG diagram
+                for(const key in svgElements) {
+                    const value = values[key];
+                    const unit = { V: 'V', I: 'A', R: 'Ω', P: 'W' }[key];
+                    if (!isNaN(value)) {
+                        const formattedValue = isFinite(value) ? parseFloat(value.toPrecision(3)) : "∞";
+                        svgElements[key].textContent = `${formattedValue} ${unit}`;
+                    } else {
+                        svgElements[key].textContent = `? ${unit}`;
+                    }
+                }
+
+                // Update formula display
+                if (formulas.length > 0) {
+                    formulaDisplay.innerHTML = `<p>${formulas[0]}</p><p>${formulas[1]}</p>`;
+                } else {
+                    formulaDisplay.innerHTML = `<p class="placeholder">Enter two values to see the formulas...</p>`;
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
