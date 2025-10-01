@@ -280,139 +280,178 @@
                 R: document.getElementById('svg-resistance'),
                 P: document.getElementById('svg-power')
             };
-            
+
             const formulaDisplay = document.getElementById('formula-display');
-            
+
+            // Maintain a short history of the most recently edited inputs so we know
+            // which values the user considers "known" when performing calculations.
             let lastEdited = [];
 
-            // Add event listeners to all inputs
+            const UNITS = Object.freeze({ V: 'V', I: 'A', R: 'Ω', P: 'W' });
+
+            // Centralized description of every formula pair we support. This keeps the
+            // calculation logic declarative and easier to extend in the future.
+            const CALCULATION_RULES = Object.freeze({
+                IR: {
+                    compute: ({ I, R }) => ({
+                        V: I * R,
+                        P: I * I * R
+                    }),
+                    formulas: ["V = I × R", "P = I² × R"]
+                },
+                IP: {
+                    compute: ({ I, P }) => ({
+                        V: P / I,
+                        R: P / (I * I)
+                    }),
+                    formulas: ["V = P / I", "R = P / I²"]
+                },
+                IV: {
+                    compute: ({ I, V }) => ({
+                        R: V / I,
+                        P: V * I
+                    }),
+                    formulas: ["R = V / I", "P = V × I"]
+                },
+                PR: {
+                    compute: ({ P, R }) => ({
+                        I: Math.sqrt(P / R),
+                        V: Math.sqrt(P * R)
+                    }),
+                    formulas: ["I = √(P / R)", "V = √(P × R)"]
+                },
+                PV: {
+                    compute: ({ P, V }) => ({
+                        I: P / V,
+                        R: (V * V) / P
+                    }),
+                    formulas: ["I = P / V", "R = V² / P"]
+                },
+                RV: {
+                    compute: ({ R, V }) => ({
+                        I: V / R,
+                        P: (V * V) / R
+                    }),
+                    formulas: ["I = V / R", "P = V² / R"]
+                }
+            });
+
+            // React to user edits in real-time.
             Object.values(inputs).forEach(input => {
                 input.addEventListener('input', handleInput);
             });
 
-            function handleInput(e) {
-                const editedId = e.target.id;
+            function handleInput(event) {
+                const editedId = event.target.id;
                 const editedKey = editedId.charAt(0).toUpperCase();
 
-                // Update the list of recently edited fields
-                lastEdited = [editedKey, ...lastEdited.filter(k => k !== editedKey)].slice(0, 2);
-                
+                // Refresh the edit history with the latest field (max length = 2).
+                lastEdited = [editedKey, ...lastEdited.filter(key => key !== editedKey)].slice(0, 2);
+
                 calculateAndDisplay();
             }
 
             function calculateAndDisplay() {
-                // Get current values from inputs
-                const values = {
-                    V: parseFloat(inputs.V.value),
-                    I: parseFloat(inputs.I.value),
-                    R: parseFloat(inputs.R.value),
-                    P: parseFloat(inputs.P.value)
-                };
+                const values = getInputValues();
+                const knownKeys = Object.keys(values).filter(key => !isNaN(values[key]));
 
-                const knowns = Object.keys(values).filter(k => !isNaN(values[k]));
-                
-                if (knowns.length < 2) {
-                    // Not enough info to calculate, just update styles
-                    updateStylesAndDiagram(values, [], []);
+                if (knownKeys.length < 2) {
+                    updateStylesAndDiagram(values, [], [], []);
                     return;
                 }
 
-                // Use the two most recently edited valid inputs as the basis for calculation
-                const basis = lastEdited.filter(k => !isNaN(values[k]));
-                if(basis.length < 2) {
-                    // If one of the last edited is now empty, find another valid known
-                    const otherKnown = knowns.find(k => !basis.includes(k));
-                    if(otherKnown) basis.push(otherKnown);
+                // Prefer the two most recently edited inputs. If one was cleared, use
+                // another available known value as a fallback.
+                const basis = lastEdited.filter(key => !isNaN(values[key]));
+                if (basis.length < 2) {
+                    const fallback = knownKeys.find(key => !basis.includes(key));
+                    if (fallback) {
+                        basis.push(fallback);
+                    }
                 }
 
                 if (basis.length < 2) {
-                    updateStylesAndDiagram(values, [], []);
+                    updateStylesAndDiagram(values, [], [], []);
                     return;
                 }
-                
-                const [k1, k2] = basis.sort(); // Sort to make combinations predictable (e.g., 'IV' becomes 'I', 'V')
-                let newValues = { ...values };
-                let formulasUsed = [];
 
-                // The Big Calculation Logic Tree
-                if (k1 === 'I' && k2 === 'R') {
-                    newValues.V = values.I * values.R;
-                    newValues.P = values.I * values.I * values.R;
-                    formulasUsed = ["V = I × R", "P = I² × R"];
-                } else if (k1 === 'I' && k2 === 'V') {
-                    newValues.R = values.V / values.I;
-                    newValues.P = values.V * values.I;
-                    formulasUsed = ["R = V / I", "P = V × I"];
-                } else if (k1 === 'I' && k2 === 'P') {
-                    newValues.V = values.P / values.I;
-                    newValues.R = values.P / (values.I * values.I);
-                    formulasUsed = ["V = P / I", "R = P / I²"];
-                } else if (k1 === 'R' && k2 === 'V') {
-                    newValues.I = values.V / values.R;
-                    newValues.P = (values.V * values.V) / values.R;
-                    formulasUsed = ["I = V / R", "P = V² / R"];
-                } else if (k1 === 'P' && k2 === 'R') {
-                    newValues.I = Math.sqrt(values.P / values.R);
-                    newValues.V = Math.sqrt(values.P * values.R);
-                    formulasUsed = ["I = √(P / R)", "V = √(P × R)"];
-                } else if (k1 === 'P' && k2 === 'V') {
-                    newValues.I = values.P / values.V;
-                    newValues.R = (values.V * values.V) / values.P;
-                    formulasUsed = ["I = P / V", "R = V² / P"];
+                const sortedBasis = [...basis].sort();
+                const ruleKey = sortedBasis.join('');
+                const rule = CALCULATION_RULES[ruleKey];
+
+                if (!rule) {
+                    // Guard against unexpected combinations.
+                    updateStylesAndDiagram(values, sortedBasis, [], []);
+                    return;
                 }
-                
-                const calculatedKeys = Object.keys(newValues).filter(k => !basis.includes(k));
-                updateUI(newValues, basis, calculatedKeys, formulasUsed);
+
+                const computedValues = rule.compute(values);
+                const updatedValues = { ...values, ...computedValues };
+                const calculatedKeys = Object.keys(updatedValues).filter(key => !sortedBasis.includes(key));
+
+                updateUI(updatedValues, sortedBasis, calculatedKeys, rule.formulas);
             }
 
+            // Read and parse every numeric input so downstream helpers can work with
+            // a consistent data structure.
+            function getInputValues() {
+                return Object.fromEntries(
+                    Object.entries(inputs).map(([key, element]) => [key, parseFloat(element.value)])
+                );
+            }
+
+            // Render the latest values back to the UI while respecting which inputs
+            // the user explicitly provided versus which ones were calculated.
             function updateUI(values, knownKeys, calculatedKeys, formulas) {
-                // Update input fields
-                for (const key in values) {
+                Object.entries(values).forEach(([key, value]) => {
                     const input = inputs[key];
-                    const value = values[key];
-                    
+
                     if (!isNaN(value)) {
-                        // Format to a reasonable number of decimal places
-                        const formattedValue = isFinite(value) ? parseFloat(value.toPrecision(5)) : "∞";
+                        const formattedValue = formatNumber(value, 5);
                         if (input.value !== formattedValue.toString()) {
-                             input.value = formattedValue;
+                            input.value = formattedValue;
                         }
                     } else if (!knownKeys.includes(key)) {
-                        input.value = ''; // Clear if it's not a known and not calculable
-                    }
-                }
-                
-                updateStylesAndDiagram(values, knownKeys, formulas);
-            }
-            
-            function updateStylesAndDiagram(values, knownKeys, formulas) {
-                 // Update styles
-                Object.keys(inputs).forEach(key => {
-                    if (knownKeys.includes(key) && !isNaN(values[key])) {
-                        inputs[key].classList.remove('calculated');
-                    } else {
-                        inputs[key].classList.add('calculated');
+                        input.value = '';
                     }
                 });
 
-                // Update SVG diagram
-                for(const key in svgElements) {
-                    const value = values[key];
-                    const unit = { V: 'V', I: 'A', R: 'Ω', P: 'W' }[key];
-                    if (!isNaN(value)) {
-                        const formattedValue = isFinite(value) ? parseFloat(value.toPrecision(3)) : "∞";
-                        svgElements[key].textContent = `${formattedValue} ${unit}`;
-                    } else {
-                        svgElements[key].textContent = `? ${unit}`;
-                    }
-                }
+                updateStylesAndDiagram(values, knownKeys, calculatedKeys, formulas);
+            }
 
-                // Update formula display
+            // Sync helper styles, the annotated SVG diagram, and the formula display
+            // so everything stays in lock-step with the calculator state.
+            function updateStylesAndDiagram(values, knownKeys, calculatedKeys, formulas = []) {
+                Object.keys(inputs).forEach(key => {
+                    const shouldHighlight =
+                        calculatedKeys.includes(key) || !knownKeys.includes(key) || isNaN(values[key]);
+                    inputs[key].classList.toggle('calculated', shouldHighlight);
+                });
+
+                Object.keys(svgElements).forEach(key => {
+                    const value = values[key];
+                    if (!isNaN(value)) {
+                        svgElements[key].textContent = `${formatNumber(value, 3)} ${UNITS[key]}`;
+                    } else {
+                        svgElements[key].textContent = `? ${UNITS[key]}`;
+                    }
+                });
+
                 if (formulas.length > 0) {
                     formulaDisplay.innerHTML = `<p>${formulas[0]}</p><p>${formulas[1]}</p>`;
                 } else {
                     formulaDisplay.innerHTML = `<p class="placeholder">Enter two values to see the formulas...</p>`;
                 }
+            }
+
+            // Provide consistent rounding (with graceful handling of divide-by-zero
+            // scenarios) so values look tidy without losing meaningful precision.
+            function formatNumber(value, precision) {
+                if (!isFinite(value)) {
+                    return '∞';
+                }
+
+                return parseFloat(value.toPrecision(precision));
             }
         });
     </script>
