@@ -123,6 +123,34 @@
             font-style: italic;
         }
 
+        .learning-panel {
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            background: #fffdf4;
+        }
+
+        .learning-panel h3 {
+            margin-top: 0;
+            color: #8a6d00;
+        }
+
+        .learning-panel ul {
+            margin: 10px 0 0;
+            padding-left: 20px;
+        }
+
+        .learning-panel li {
+            margin-bottom: 6px;
+        }
+
+        .learning-panel .placeholder {
+            color: var(--secondary-color);
+            font-style: italic;
+            margin: 0;
+        }
+
         /* --- Interactive Circuit Diagram --- */
         .circuit-container {
             text-align: center;
@@ -213,6 +241,12 @@
                 <div class="formula-display" id="formula-display">
                      <p class="placeholder">Formulas used will appear here...</p>
                 </div>
+
+                <div class="learning-panel" id="learning-panel">
+                    <h3>Learning Coach</h3>
+                    <p class="placeholder" id="teaching-summary">Enter two values to see a guided walkthrough.</p>
+                    <ul id="teaching-steps"></ul>
+                </div>
             </div>
 
             <div class="circuit-container">
@@ -282,6 +316,8 @@
             };
 
             const formulaDisplay = document.getElementById('formula-display');
+            const teachingSummary = document.getElementById('teaching-summary');
+            const teachingSteps = document.getElementById('teaching-steps');
 
             // Maintain a short history of the most recently edited inputs so we know
             // which values the user considers "known" when performing calculations.
@@ -357,6 +393,7 @@
 
                 if (knownKeys.length < 2) {
                     updateStylesAndDiagram(values, [], [], []);
+                    updateTeachingPanel(null);
                     return;
                 }
 
@@ -372,6 +409,7 @@
 
                 if (basis.length < 2) {
                     updateStylesAndDiagram(values, [], [], []);
+                    updateTeachingPanel(null);
                     return;
                 }
 
@@ -382,14 +420,17 @@
                 if (!rule) {
                     // Guard against unexpected combinations.
                     updateStylesAndDiagram(values, sortedBasis, [], []);
+                    updateTeachingPanel(null);
                     return;
                 }
 
                 const computedValues = rule.compute(values);
                 const updatedValues = { ...values, ...computedValues };
                 const calculatedKeys = Object.keys(updatedValues).filter(key => !sortedBasis.includes(key));
+                const lesson = buildTeachingNarrative(sortedBasis, calculatedKeys, values, computedValues, rule.formulas);
 
                 updateUI(updatedValues, sortedBasis, calculatedKeys, rule.formulas);
+                updateTeachingPanel(lesson);
             }
 
             // Read and parse every numeric input so downstream helpers can work with
@@ -442,6 +483,40 @@
                 } else {
                     formulaDisplay.innerHTML = `<p class="placeholder">Enter two values to see the formulas...</p>`;
                 }
+            }
+
+            function buildTeachingNarrative(knownKeys, calculatedKeys, knownValues, computedValues, formulas) {
+                const knownSummary = knownKeys
+                    .map(key => `${key} = ${formatNumber(knownValues[key], 4)} ${UNITS[key]}`)
+                    .join(' and ');
+
+                const steps = calculatedKeys.map((key, index) => {
+                    const formula = formulas[index] || `${key} formula`;
+                    return `${formula} → ${key} = ${formatNumber(computedValues[key], 4)} ${UNITS[key]}`;
+                });
+
+                const powerValue = knownValues.P ?? computedValues.P;
+                if (!isNaN(powerValue)) {
+                    steps.push(`Sanity check: P = ${formatNumber(powerValue, 4)} W ${powerValue >= 0 ? '(passive load)' : '(active source)'}`);
+                }
+
+                return {
+                    summary: `Using ${knownSummary}, we solve for ${calculatedKeys.join(' and ')}.`,
+                    steps
+                };
+            }
+
+            function updateTeachingPanel(lesson) {
+                if (!lesson) {
+                    teachingSummary.textContent = 'Enter two values to see a guided walkthrough.';
+                    teachingSummary.classList.add('placeholder');
+                    teachingSteps.innerHTML = '';
+                    return;
+                }
+
+                teachingSummary.textContent = lesson.summary;
+                teachingSummary.classList.remove('placeholder');
+                teachingSteps.innerHTML = lesson.steps.map(step => `<li>${step}</li>`).join('');
             }
 
             // Provide consistent rounding (with graceful handling of divide-by-zero
