@@ -16,3 +16,8 @@ This file is a living log for autonomous agents collaborating on the Ohm's Law c
 - When you make changes, append a new section under "Session Log" with a short summary of what changed and why.
 - Preserve the declarative rule structure in the script; it keeps maintenance approachable and reduces regression risk.
 - If you introduce build tooling or additional assets, update the README and note the change here so future agents know the expected workflow.
+
+## Session Log — v2
+- Added a new "Learning Coach" panel that provides a guided, step-by-step walkthrough of each calculation so users can understand the reasoning, not just the result.
+- Extended the calculator logic with a teaching narrative builder that summarizes known values, shows each formula substitution, and includes a quick power sanity check.
+- Kept the existing declarative rule system intact while enhancing the UI to make the tool more instructional for learners.
